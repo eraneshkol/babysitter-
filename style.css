@@ -422,6 +422,7 @@ tbody tr.in-progress { color: var(--red); font-weight: 600; }
 .list-row-group .btn-list-row:last-of-type { border-bottom: none; }
 .list-row-group .btn-list-row.danger-text { color: var(--red); }
 .last-backup-info { color: var(--muted); font-size: 0.8rem; margin-top: 12px; text-align: center; }
+.app-version { text-align: center; color: var(--muted); font-size: 0.75rem; opacity: 0.6; margin-top: 8px; }
 
 /* --- GENERIC BUTTONS --- */
 .btn {

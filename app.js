@@ -1,5 +1,9 @@
 'use strict';
 
+// מספר גרסה גלוי (מוצג בתחתית ההגדרות) - מאפשר לוודא שהמכשיר טען את הקוד העדכני
+// ולא גרסה ישנה שנתקעה בקאש, בלי צורך בניחושים.
+const APP_VERSION = 'v14';
+
 // חייב להירשם באופן סינכרוני, מיד עם טעינת הסקריפט - הדפדפן עלול לירות את
 // beforeinstallprompt לפני ש-DOMContentLoaded מסתיים, ואם הליסנר נרשם מאוחר יותר
 // (בתוך init) האירוע פשוט אובד ולעולם לא נדע שהאפליקציה ניתנת להתקנה בטעינה הזו.
@@ -571,6 +575,7 @@ async function handleDeleteBalancePayment(paymentId) {
 // ---------- settings: caregivers ----------
 async function renderSettings() {
   updateInstallButtonVisibility();
+  document.getElementById('appVersion').textContent = `גרסה ${APP_VERSION}`;
   const caregivers = await DB.getAllCaregivers();
   renderCaregiverList(caregivers);
 
