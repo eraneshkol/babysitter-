@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
 <title>מעקב שעות מטפלת</title>
-<meta name="theme-color" content="#16a34a" />
+<meta name="theme-color" content="#34c759" />
 <link rel="manifest" href="manifest.json" />
 <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
 <link rel="apple-touch-icon" href="icons/icon-192.png" />
@@ -61,43 +61,47 @@
   </main>
 
   <main id="view-settings" class="view hidden">
-    <div class="settings-card">
-      <div class="settings-title">מטפלות</div>
-      <div id="caregiverList" class="caregiver-list"></div>
-      <div class="add-caregiver-form">
-        <input type="text" id="newCaregiverName" placeholder="שם המטפלת" />
-        <input type="number" id="newCaregiverRate" placeholder="תעריף לשעה (₪)" min="0" step="1" inputmode="decimal" />
-        <button id="addCaregiverBtn" class="btn btn-primary">הוספת מטפלת</button>
+    <div class="settings-section">
+      <div class="section-header">מטפלות</div>
+      <div class="settings-card">
+        <div id="caregiverList" class="caregiver-list"></div>
+        <div class="add-caregiver-form">
+          <input type="text" id="newCaregiverName" placeholder="שם המטפלת" />
+          <input type="number" id="newCaregiverRate" placeholder="תעריף לשעה (₪)" min="0" step="1" inputmode="decimal" />
+          <button id="addCaregiverBtn" class="btn btn-accent">הוספת מטפלת</button>
+        </div>
       </div>
     </div>
 
-    <div class="settings-card">
-      <div class="settings-title">גיבוי ושחזור</div>
-      <p class="settings-desc">מומלץ לייצא גיבוי מדי פעם ולשמור אותו במקום בטוח (למשל בדרייב או בוואטסאפ לעצמך).</p>
-      <button id="exportBtn" class="btn btn-secondary">ייצוא גיבוי לקובץ</button>
-      <label class="btn btn-secondary file-label">
-        ייבוא גיבוי מקובץ
-        <input type="file" id="importInput" accept="application/json" hidden />
-      </label>
-      <div id="lastBackupInfo" class="last-backup-info"></div>
+    <div class="settings-section">
+      <div class="section-header">גיבוי ושחזור</div>
+      <div class="settings-card list-row-group">
+        <button id="exportBtn" class="btn-list-row">ייצוא גיבוי</button>
+        <label class="btn-list-row file-label">
+          ייבוא גיבוי
+          <input type="file" id="importInput" accept="application/json" hidden />
+        </label>
+        <div id="lastBackupInfo" class="last-backup-info"></div>
+      </div>
     </div>
 
-    <div class="settings-card danger-card">
-      <div class="settings-title">איפוס נתונים</div>
-      <p class="settings-desc">פעולה זו תמחק לצמיתות את כל הרישומים, כולל היסטוריית כל החודשים. לא ניתן לבטל.</p>
-      <button id="resetBtn" class="btn btn-danger">איפוס כל הנתונים</button>
+    <div class="settings-section">
+      <div class="section-header">איפוס נתונים</div>
+      <div class="settings-card list-row-group">
+        <button id="resetBtn" class="btn-list-row danger-text">איפוס כל הנתונים</button>
+      </div>
     </div>
   </main>
 
   <nav class="bottom-nav">
     <button class="nav-btn active" data-view="home">
-      <span class="nav-icon">🏠</span><span>מעקב</span>
+      <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M3 11.5 12 4l9 7.5"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg></span><span>מעקב</span>
     </button>
     <button class="nav-btn" data-view="report">
-      <span class="nav-icon">📊</span><span>דוח חודשי</span>
+      <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></span><span>דוח חודשי</span>
     </button>
     <button class="nav-btn" data-view="settings">
-      <span class="nav-icon">⚙️</span><span>הגדרות</span>
+      <span class="nav-icon"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span><span>הגדרות</span>
     </button>
   </nav>
 

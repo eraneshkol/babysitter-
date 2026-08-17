@@ -9,6 +9,14 @@ let activeCaregiverId = null; // מי הכפתור הגדול במסך הבית 
 let reportCaregiverId = null; // מי מוצגת כרגע בדוח החודשי
 let editingCaregiverId = null;
 
+const ICONS = {
+  user: '<svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  edit: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  trash: '<svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
+  check: '<svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+  x: '<svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+};
+
 // ---------- utils ----------
 function todayYearMonth() {
   const d = new Date();
@@ -300,7 +308,7 @@ function renderCaregiverList(caregivers) {
   const container = document.getElementById('caregiverList');
   container.innerHTML = '';
   if (caregivers.length === 0) {
-    container.innerHTML = '<p class="settings-desc">אין עדיין מטפלות. הוסיפי אחת למטה.</p>';
+    container.innerHTML = '<p class="last-backup-info">אין עדיין מטפלות. הוסיפי אחת למטה.</p>';
     return;
   }
   for (const c of caregivers) {
@@ -308,24 +316,29 @@ function renderCaregiverList(caregivers) {
     row.className = 'caregiver-row';
     if (editingCaregiverId === c.id) {
       row.innerHTML = `
+        <div class="caregiver-avatar">${ICONS.user}</div>
         <div class="caregiver-info">
           <input type="text" class="edit-name-input" value="${escapeHtml(c.name)}" />
           <input type="number" class="edit-rate-input" value="${c.hourlyRate || 0}" min="0" step="1" />
         </div>
         <div class="caregiver-actions">
-          <button class="icon-btn" data-action="save" data-id="${c.id}" aria-label="שמירה">✔️</button>
-          <button class="icon-btn" data-action="cancel" aria-label="ביטול">✖️</button>
+          <button class="icon-btn" data-action="save" data-id="${c.id}" aria-label="שמירה">${ICONS.check}</button>
+          <button class="icon-btn" data-action="cancel" aria-label="ביטול">${ICONS.x}</button>
         </div>
       `;
     } else {
       row.innerHTML = `
+        <div class="caregiver-avatar">${ICONS.user}</div>
         <div class="caregiver-info">
-          <div class="caregiver-name">${escapeHtml(c.name)}${c.archived ? '<span class="caregiver-archived-badge">בארכיון</span>' : ''}</div>
-          <div class="caregiver-rate">₪${c.hourlyRate || 0} לשעה</div>
+          <div class="caregiver-name">${escapeHtml(c.name)}</div>
+          <div class="caregiver-meta">
+            ${c.archived ? '<span class="status-pill">בארכיון</span>' : ''}
+            <span class="caregiver-rate">₪${c.hourlyRate || 0} לשעה</span>
+          </div>
         </div>
         <div class="caregiver-actions">
-          ${c.archived ? '' : `<button class="icon-btn" data-action="edit" data-id="${c.id}" aria-label="עריכה">✏️</button>`}
-          ${c.archived ? '' : `<button class="icon-btn danger" data-action="remove" data-id="${c.id}" aria-label="הסרה">🗑️</button>`}
+          ${c.archived ? '' : `<button class="icon-btn" data-action="edit" data-id="${c.id}" aria-label="עריכה">${ICONS.edit}</button>`}
+          ${c.archived ? '' : `<button class="icon-btn danger" data-action="remove" data-id="${c.id}" aria-label="הסרה">${ICONS.trash}</button>`}
         </div>
       `;
     }
