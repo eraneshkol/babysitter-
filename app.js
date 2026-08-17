@@ -1,5 +1,19 @@
 'use strict';
 
+// חייב להירשם באופן סינכרוני, מיד עם טעינת הסקריפט - הדפדפן עלול לירות את
+// beforeinstallprompt לפני ש-DOMContentLoaded מסתיים, ואם הליסנר נרשם מאוחר יותר
+// (בתוך init) האירוע פשוט אובד ולעולם לא נדע שהאפליקציה ניתנת להתקנה בטעינה הזו.
+let deferredInstallPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (typeof updateInstallButtonVisibility === 'function') updateInstallButtonVisibility();
+});
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  if (typeof updateInstallButtonVisibility === 'function') updateInstallButtonVisibility();
+});
+
 const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 
 let currentYearMonth = todayYearMonth();
@@ -573,8 +587,6 @@ async function handleReset() {
 }
 
 // ---------- settings: install app ----------
-let deferredInstallPrompt = null;
-
 function isStandaloneDisplay() {
   return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
 }
@@ -647,16 +659,6 @@ async function init() {
   });
   document.getElementById('resetBtn').addEventListener('click', handleReset);
   document.getElementById('installAppBtn').addEventListener('click', handleInstallClick);
-
-  window.addEventListener('beforeinstallprompt', (e) => {
-    e.preventDefault();
-    deferredInstallPrompt = e;
-    updateInstallButtonVisibility();
-  });
-  window.addEventListener('appinstalled', () => {
-    deferredInstallPrompt = null;
-    updateInstallButtonVisibility();
-  });
   updateInstallButtonVisibility();
 
   document.addEventListener('visibilitychange', () => {
