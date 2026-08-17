@@ -25,6 +25,12 @@ function formatDuration(minutes) {
   const m = minutes % 60;
   return `${h}:${String(m).padStart(2, '0')}`;
 }
+function formatDurationHMS(totalSeconds) {
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+}
 function monthLabel(yearMonth) {
   const [y, m] = yearMonth.split('-');
   return `${HEBREW_MONTHS[parseInt(m, 10) - 1]} ${y}`;
@@ -96,14 +102,14 @@ async function renderHome() {
 function startLiveTimer(state) {
   clearInterval(liveTimer);
   if (state.status !== 'in') return;
-  liveTimer = setInterval(() => updateTodaySummary(state), 30000);
+  liveTimer = setInterval(() => updateTodaySummary(state), 1000);
 }
 
 function updateTodaySummary(state) {
   const el = document.getElementById('todaySummary');
   if (state.status === 'in' && state.checkInTimestamp) {
-    const mins = Math.max(0, Math.round((Date.now() - new Date(state.checkInTimestamp)) / 60000));
-    el.textContent = `זמן שעבר: ${formatDuration(mins)} שעות`;
+    const secs = Math.max(0, Math.round((Date.now() - new Date(state.checkInTimestamp)) / 1000));
+    el.textContent = `זמן שעבר: ${formatDurationHMS(secs)}`;
   } else {
     el.textContent = '';
   }
