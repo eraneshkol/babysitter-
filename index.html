@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover" />
+<title>מעקב שעות מטפלת</title>
+<meta name="theme-color" content="#16a34a" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="שעות מטפלת" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<div id="app">
+
+  <header class="topbar">
+    <h1 id="pageTitle">מעקב שעות</h1>
+  </header>
+
+  <main id="view-home" class="view">
+    <div class="status-line" id="statusLine">טוען...</div>
+    <button id="toggleBtn" class="toggle-btn state-out" disabled>
+      <span id="toggleLabel">טוען...</span>
+    </button>
+    <div class="today-summary" id="todaySummary"></div>
+  </main>
+
+  <main id="view-report" class="view hidden">
+    <div class="month-nav">
+      <button id="prevMonthBtn" class="nav-arrow" aria-label="חודש קודם">‹</button>
+      <div id="monthLabel" class="month-label">—</div>
+      <button id="nextMonthBtn" class="nav-arrow" aria-label="חודש הבא">›</button>
+    </div>
+
+    <div class="totals-card">
+      <div class="totals-row">
+        <span class="totals-key">סה"כ שעות החודש</span>
+        <span class="totals-val" id="totalHours">0:00</span>
+      </div>
+      <div class="totals-row">
+        <span class="totals-key">לתשלום</span>
+        <span class="totals-val" id="totalPay">₪0</span>
+      </div>
+    </div>
+
+    <div class="table-wrap">
+      <table id="entriesTable">
+        <thead>
+          <tr><th>תאריך</th><th>כניסה</th><th>יציאה</th><th>שעות</th></tr>
+        </thead>
+        <tbody id="entriesBody"></tbody>
+      </table>
+      <div id="emptyState" class="empty-state hidden">אין רישומים בחודש זה</div>
+    </div>
+  </main>
+
+  <main id="view-settings" class="view hidden">
+    <div class="settings-card">
+      <label class="settings-label" for="rateInput">תעריף לשעה (₪)</label>
+      <input type="number" id="rateInput" min="0" step="1" inputmode="decimal" />
+      <button id="saveRateBtn" class="btn btn-primary">שמור תעריף</button>
+    </div>
+
+    <div class="settings-card">
+      <div class="settings-title">גיבוי ושחזור</div>
+      <p class="settings-desc">מומלץ לייצא גיבוי מדי פעם ולשמור אותו במקום בטוח (למשל בדרייב או בוואטסאפ לעצמך).</p>
+      <button id="exportBtn" class="btn btn-secondary">ייצוא גיבוי לקובץ</button>
+      <label class="btn btn-secondary file-label">
+        ייבוא גיבוי מקובץ
+        <input type="file" id="importInput" accept="application/json" hidden />
+      </label>
+      <div id="lastBackupInfo" class="last-backup-info"></div>
+    </div>
+
+    <div class="settings-card danger-card">
+      <div class="settings-title">איפוס נתונים</div>
+      <p class="settings-desc">פעולה זו תמחק לצמיתות את כל הרישומים, כולל היסטוריית כל החודשים. לא ניתן לבטל.</p>
+      <button id="resetBtn" class="btn btn-danger">איפוס כל הנתונים</button>
+    </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <button class="nav-btn active" data-view="home">
+      <span class="nav-icon">🏠</span><span>מעקב</span>
+    </button>
+    <button class="nav-btn" data-view="report">
+      <span class="nav-icon">📊</span><span>דוח חודשי</span>
+    </button>
+    <button class="nav-btn" data-view="settings">
+      <span class="nav-icon">⚙️</span><span>הגדרות</span>
+    </button>
+  </nav>
+
+</div>
+
+<div id="toast" class="toast hidden"></div>
+<div id="confirmModal" class="modal hidden">
+  <div class="modal-box">
+    <div id="confirmTitle" class="modal-title"></div>
+    <div id="confirmBody" class="modal-body"></div>
+    <div class="modal-actions">
+      <button id="confirmCancel" class="btn btn-secondary">ביטול</button>
+      <button id="confirmOk" class="btn btn-danger">אישור</button>
+    </div>
+  </div>
+</div>
+
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
