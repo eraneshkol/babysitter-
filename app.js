@@ -593,6 +593,9 @@ function isStandaloneDisplay() {
 function isIOS() {
   return /iphone|ipad|ipod/i.test(navigator.userAgent);
 }
+function isChromeOnIOS() {
+  return /CriOS/i.test(navigator.userAgent);
+}
 
 function updateInstallButtonVisibility() {
   const btn = document.getElementById('installAppBtn');
@@ -608,7 +611,7 @@ function updateInstallButtonVisibility() {
     btn.classList.remove('hidden');
     info.classList.add('hidden');
   } else if (isIOS()) {
-    btn.textContent = 'איך מתקינים על אייפון';
+    btn.textContent = isChromeOnIOS() ? 'להתקנה: יש לפתוח בספארי' : 'איך מתקינים על אייפון';
     btn.classList.remove('hidden');
     info.classList.add('hidden');
   } else {
@@ -626,11 +629,19 @@ async function handleInstallClick() {
     return;
   }
   if (isIOS()) {
-    await confirmModal(
-      'התקנה על אייפון',
-      'בספארי: לחצי על כפתור השיתוף (הריבוע עם החץ למעלה) בתחתית המסך, גללי למטה ובחרי "הוסף למסך הבית".',
-      'הבנתי'
-    );
+    if (isChromeOnIOS()) {
+      await confirmModal(
+        'התקנה על אייפון',
+        'באייפון רק ספארי יכול להתקין אפליקציות למסך הבית - כרום לא תומך בזה (מגבלה של אפל, לא של האפליקציה). יש להעתיק את הקישור, לפתוח אותו בספארי, ואז ללחוץ על כפתור השיתוף (הריבוע עם החץ למעלה) בתחתית המסך ולבחור "הוסף למסך הבית".',
+        'הבנתי'
+      );
+    } else {
+      await confirmModal(
+        'התקנה על אייפון',
+        'בספארי: לחצי על כפתור השיתוף (הריבוע עם החץ למעלה) בתחתית המסך, גללי למטה ובחרי "הוסף למסך הבית".',
+        'הבנתי'
+      );
+    }
   }
 }
 
