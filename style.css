@@ -233,6 +233,29 @@ tbody tr { border-top: 1px solid var(--border); cursor: pointer; }
 tbody tr:active { background: var(--fill); }
 tbody tr.in-progress { color: var(--red); font-weight: 600; }
 
+.edited-badge {
+  display: inline-flex;
+  vertical-align: middle;
+  margin-inline-start: 4px;
+  color: var(--muted);
+  opacity: 0.7;
+}
+.edited-badge .icon { width: 12px; height: 12px; }
+
+.row-edit-btn {
+  background: var(--fill);
+  border: none;
+  border-radius: 8px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  cursor: pointer;
+}
+.row-edit-btn .icon { width: 15px; height: 15px; }
+
 .table-hint { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 8px; }
 
 .empty-state { text-align: center; padding: 30px 10px; color: var(--muted); }

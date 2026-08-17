@@ -30,6 +30,7 @@ const ICONS = {
   trash: '<svg class="icon" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>',
   check: '<svg class="icon" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
   x: '<svg class="icon" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
+  edited: '<svg class="icon" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
 };
 
 // ---------- utils ----------
@@ -284,9 +285,14 @@ async function renderReport() {
       <td>${formatDateHe(entry.date)}</td>
       <td>${formatTime(entry.checkIn)}</td>
       <td>${entry.checkOut ? formatTime(entry.checkOut) : 'פעיל'}</td>
-      <td>${formatDuration(mins)}</td>
+      <td>${formatDuration(mins)}${entry.manuallyEdited ? `<span class="edited-badge" title="נערך ידנית">${ICONS.edited}</span>` : ''}</td>
+      <td><button type="button" class="row-edit-btn" aria-label="עריכת רשומה">${ICONS.edit}</button></td>
     `;
     tr.addEventListener('click', () => openEntryModal(entry));
+    tr.querySelector('.row-edit-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      openEntryModal(entry);
+    });
     tbody.appendChild(tr);
   }
 

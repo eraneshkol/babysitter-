@@ -525,6 +525,7 @@ async function updateEntry(entryId, checkInIso, checkOutIso) {
       entry.checkIn = checkInIso;
       entry.checkOut = checkOutIso;
       entry.durationMinutes = durationMinutes;
+      entry.manuallyEdited = true;
       entriesStore.put(entry);
 
       if (wasOpen) {
@@ -559,6 +560,7 @@ async function addManualEntry(caregiverId, checkInIso, checkOutIso) {
     checkIn: checkInIso,
     checkOut: checkOutIso,
     durationMinutes,
+    manuallyEdited: true,
   };
   await new Promise((resolve, reject) => {
     const tx = db.transaction(['entries'], 'readwrite');
