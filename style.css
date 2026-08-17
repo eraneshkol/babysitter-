@@ -261,6 +261,41 @@ tbody tr.in-progress { color: var(--red); font-weight: 600; }
 .empty-state { text-align: center; padding: 30px 10px; color: var(--muted); }
 .empty-state.hidden { display: none; }
 
+/* --- BALANCES --- */
+.balances-list { display: flex; flex-direction: column; gap: 14px; }
+.balance-card {
+  background: var(--card);
+  border-radius: var(--radius-card);
+  padding: 18px 20px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+}
+.balance-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.balance-name { font-weight: 700; font-size: 1.05rem; }
+.balance-amount { font-size: 2rem; font-weight: 800; color: var(--green-dark); }
+.balance-amount.balance-clear { color: var(--muted); font-size: 1.2rem; }
+.balance-sub { color: var(--muted); font-size: 0.82rem; margin: 4px 0 14px; }
+
+.balance-payments-list { margin-bottom: 10px; }
+.balance-payment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+.balance-payment-row:last-child { border-bottom: none; }
+
+.balance-add-form { display: flex; gap: 8px; padding-top: 12px; border-top: 1px solid var(--border); }
+.balance-add-form input { flex: 1; }
+.balance-add-form button {
+  margin-top: 0;
+  width: auto;
+  white-space: nowrap;
+  padding: 10px 16px;
+}
+
 /* --- SETTINGS: sections (iOS inset-grouped style) --- */
 .settings-section { margin-bottom: 24px; }
 .section-header {

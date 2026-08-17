@@ -101,6 +101,7 @@ function switchView(name) {
   document.getElementById(`view-${name}`).classList.remove('hidden');
   document.querySelectorAll('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.view === name));
   if (name === 'report') renderReport();
+  if (name === 'balances') renderBalances();
   if (name === 'settings') renderSettings();
 }
 
@@ -488,6 +489,83 @@ async function handleShareReport() {
   a.remove();
   URL.revokeObjectURL(url);
   showToast('הקובץ הורד - אפשר לשתף אותו מאפליקציית הקבצים');
+}
+
+// ---------- balances (יתרה מצטברת, לא תלוית חודש) ----------
+async function renderBalances() {
+  const caregivers = await DB.getAllCaregivers();
+  const container = document.getElementById('balancesList');
+  container.innerHTML = '';
+
+  if (caregivers.length === 0) {
+    container.innerHTML = '<p class="last-backup-info">אין עדיין מטפלות. הוסיפי אחת בהגדרות.</p>';
+    return;
+  }
+
+  for (const c of caregivers) {
+    const bal = await DB.getCaregiverBalance(c.id);
+    const owed = Math.max(0, bal.balance);
+    const overpaid = bal.balance < 0 ? Math.abs(bal.balance) : 0;
+    const totalDeducted = bal.totalMonthlyDeductions + bal.totalPayments;
+
+    const card = document.createElement('div');
+    card.className = 'balance-card';
+
+    const paymentsRows = bal.payments
+      .map(
+        (p) => `
+        <div class="balance-payment-row">
+          <span>${new Date(p.createdAt).toLocaleDateString('he-IL')} · ₪${Number(p.amount).toLocaleString('he-IL')}</span>
+          <button type="button" class="icon-btn danger" data-action="delete-payment" data-payment-id="${p.id}" aria-label="מחיקה">${ICONS.trash}</button>
+        </div>`
+      )
+      .join('');
+
+    card.innerHTML = `
+      <div class="balance-header">
+        <div class="caregiver-avatar">${ICONS.user}</div>
+        <div class="balance-name">${escapeHtml(c.name)}${c.archived ? '<span class="status-pill">בארכיון</span>' : ''}</div>
+      </div>
+      <div class="balance-amount${owed === 0 ? ' balance-clear' : ''}">${owed === 0 ? 'אין חוב' : `₪${owed.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`}</div>
+      <div class="balance-sub">
+        סה"כ הרוויחה: ₪${bal.totalEarned.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+        · קיזוזים: ₪${totalDeducted.toLocaleString('he-IL', { maximumFractionDigits: 0 })}
+        ${overpaid > 0 ? `· שולם ₪${overpaid.toLocaleString('he-IL', { maximumFractionDigits: 0 })} מעבר לנדרש` : ''}
+      </div>
+      ${bal.payments.length > 0 ? `<div class="balance-payments-list">${paymentsRows}</div>` : ''}
+      <div class="balance-add-form">
+        <input type="number" class="form-input balance-payment-input" placeholder="סכום לקיזוז" min="0" step="1" inputmode="decimal" />
+        <button type="button" class="btn btn-accent" data-action="add-payment">הוספת קיזוז</button>
+      </div>
+    `;
+
+    card.querySelector('[data-action="add-payment"]').addEventListener('click', () => handleAddBalancePayment(c.id, card));
+    card.querySelectorAll('[data-action="delete-payment"]').forEach((btn) =>
+      btn.addEventListener('click', () => handleDeleteBalancePayment(btn.dataset.paymentId))
+    );
+
+    container.appendChild(card);
+  }
+}
+
+async function handleAddBalancePayment(caregiverId, card) {
+  const input = card.querySelector('.balance-payment-input');
+  const val = Number(input.value);
+  if (!input.value || isNaN(val) || val <= 0) {
+    showToast('סכום לא תקין');
+    return;
+  }
+  await DB.addBalancePayment(caregiverId, val);
+  showToast('הקיזוז נוסף');
+  await renderBalances();
+}
+
+async function handleDeleteBalancePayment(paymentId) {
+  const ok = await confirmModal('מחיקת קיזוז', 'האם למחוק את הקיזוז הזה?', 'מחיקה');
+  if (!ok) return;
+  await DB.deleteBalancePayment(paymentId);
+  showToast('הקיזוז נמחק');
+  await renderBalances();
 }
 
 // ---------- settings: caregivers ----------

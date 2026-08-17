@@ -11,7 +11,7 @@
  */
 
 const DB_NAME = 'babysitterTrackerDB';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const MIRROR_KEY = 'babysitter_mirror_v2';
 
 let dbPromise = null;
@@ -60,6 +60,11 @@ function openDb() {
         if (!db.objectStoreNames.contains('deductions')) {
           db.createObjectStore('deductions', { keyPath: 'id' });
         }
+
+        if (!db.objectStoreNames.contains('balancePayments')) {
+          const bp = db.createObjectStore('balancePayments', { keyPath: 'id' });
+          bp.createIndex('caregiverId', 'caregiverId', { unique: false });
+        }
       };
 
       // אם יש state ישן (סכימת v1, key: 'current') - תופסים אותו לפני שהוא נמחק
@@ -104,13 +109,14 @@ function isoDateOnly(d) {
 async function readAll() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readonly');
-    const result = { entries: [], states: [], settings: [], caregivers: [], deductions: [] };
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions', 'balancePayments'], 'readonly');
+    const result = { entries: [], states: [], settings: [], caregivers: [], deductions: [], balancePayments: [] };
     tx.objectStore('entries').getAll().onsuccess = (e) => (result.entries = e.target.result);
     tx.objectStore('state').getAll().onsuccess = (e) => (result.states = e.target.result);
     tx.objectStore('settings').getAll().onsuccess = (e) => (result.settings = e.target.result);
     tx.objectStore('caregivers').getAll().onsuccess = (e) => (result.caregivers = e.target.result);
     tx.objectStore('deductions').getAll().onsuccess = (e) => (result.deductions = e.target.result);
+    tx.objectStore('balancePayments').getAll().onsuccess = (e) => (result.balancePayments = e.target.result);
     tx.oncomplete = () => resolve(result);
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -275,17 +281,19 @@ async function migrateLegacyIfNeeded() {
 async function restoreAll(data) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readwrite');
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions', 'balancePayments'], 'readwrite');
     tx.objectStore('entries').clear();
     tx.objectStore('state').clear();
     tx.objectStore('settings').clear();
     tx.objectStore('caregivers').clear();
     tx.objectStore('deductions').clear();
+    tx.objectStore('balancePayments').clear();
     (data.entries || []).forEach((entry) => tx.objectStore('entries').put(entry));
     (data.states || []).forEach((s) => tx.objectStore('state').put(s));
     (data.settings || []).forEach((s) => tx.objectStore('settings').put(s));
     (data.caregivers || []).forEach((c) => tx.objectStore('caregivers').put(c));
     (data.deductions || []).forEach((d) => tx.objectStore('deductions').put(d));
+    (data.balancePayments || []).forEach((p) => tx.objectStore('balancePayments').put(p));
     tx.oncomplete = () => resolve();
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -603,12 +611,13 @@ async function deleteEntry(entryId) {
 async function resetAllData() {
   const db = await openDb();
   await new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readwrite');
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions', 'balancePayments'], 'readwrite');
     tx.objectStore('entries').clear();
     tx.objectStore('state').clear();
     tx.objectStore('settings').clear();
     tx.objectStore('caregivers').clear();
     tx.objectStore('deductions').clear();
+    tx.objectStore('balancePayments').clear();
     tx.oncomplete = resolve;
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -634,6 +643,91 @@ async function setDeduction(caregiverId, yearMonth, amount) {
     tx.onerror = (e) => reject(e.target.error);
   });
   await mirrorNow();
+}
+
+// ==================== יתרות (סה"כ חוב מצטבר, לא תלוי חודש) ====================
+
+async function getAllEntriesForCaregiver(caregiverId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries'], 'readonly');
+    const idx = tx.objectStore('entries').index('caregiverYearMonth');
+    const range = IDBKeyRange.bound([caregiverId, ''], [caregiverId, '￿']);
+    const req = idx.getAll(range);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function getAllDeductionsForCaregiver(caregiverId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['deductions'], 'readonly');
+    const req = tx.objectStore('deductions').getAll();
+    req.onsuccess = () => resolve(req.result.filter((d) => d.caregiverId === caregiverId));
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function getBalancePayments(caregiverId) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['balancePayments'], 'readonly');
+    const idx = tx.objectStore('balancePayments').index('caregiverId');
+    const req = idx.getAll(IDBKeyRange.only(caregiverId));
+    req.onsuccess = () => resolve(req.result.slice().sort((a, b) => a.createdAt.localeCompare(b.createdAt)));
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function addBalancePayment(caregiverId, amount) {
+  const db = await openDb();
+  const payment = { id: uid('p'), caregiverId, amount: Number(amount) || 0, createdAt: new Date().toISOString() };
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['balancePayments'], 'readwrite');
+    tx.objectStore('balancePayments').add(payment);
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+  await mirrorNow();
+  return payment;
+}
+
+async function deleteBalancePayment(paymentId) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['balancePayments'], 'readwrite');
+    tx.objectStore('balancePayments').delete(paymentId);
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+  await mirrorNow();
+}
+
+// יתרה מצטברת = כל מה שהמטפלת הרוויחה אי-פעם (לפי כל הרשומות, בכל החודשים)
+// פחות כל הקיזוזים החודשיים שנרשמו בדוחות ופחות תשלומים/קיזוזים מצטברים שנרשמו כאן.
+async function getCaregiverBalance(caregiverId) {
+  const [caregivers, entries, monthlyDeductions, payments] = await Promise.all([
+    getAllCaregivers(),
+    getAllEntriesForCaregiver(caregiverId),
+    getAllDeductionsForCaregiver(caregiverId),
+    getBalancePayments(caregiverId),
+  ]);
+
+  const caregiver = caregivers.find((c) => c.id === caregiverId);
+  const rate = caregiver ? Number(caregiver.hourlyRate) || 0 : 0;
+
+  const totalMinutes = entries.reduce((sum, entry) => {
+    let mins = entry.durationMinutes;
+    if (mins == null) mins = Math.max(0, Math.round((Date.now() - new Date(entry.checkIn)) / 60000));
+    return sum + mins;
+  }, 0);
+  const totalEarned = (totalMinutes / 60) * rate;
+  const totalMonthlyDeductions = monthlyDeductions.reduce((sum, d) => sum + (Number(d.amount) || 0), 0);
+  const totalPayments = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+  const balance = totalEarned - totalMonthlyDeductions - totalPayments;
+
+  return { totalMinutes, totalEarned, totalMonthlyDeductions, totalPayments, balance, payments };
 }
 
 async function exportBackupObject() {
@@ -683,6 +777,10 @@ window.DB = {
   deleteEntry,
   getDeduction,
   setDeduction,
+  getCaregiverBalance,
+  getBalancePayments,
+  addBalancePayment,
+  deleteBalancePayment,
   resetAllData,
   exportBackupObject,
   importBackupObject,
