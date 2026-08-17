@@ -1,4 +1,4 @@
-const CACHE_NAME = 'babysitter-tracker-v11';
+const CACHE_NAME = 'babysitter-tracker-v12';
 const ASSETS = [
   './',
   './index.html',

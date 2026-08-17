@@ -154,8 +154,8 @@ function normalizeLegacyBackupShape(raw) {
 
   const defaultCaregiver = {
     id: uid('c'),
-    name: 'מטפלת',
-    hourlyRate: (legacySettingsObj && legacySettingsObj.hourlyRate) || 0,
+    name: 'נעמה',
+    hourlyRate: (legacySettingsObj && legacySettingsObj.hourlyRate) || 50,
     createdAt: new Date().toISOString(),
     archived: false,
   };
@@ -231,8 +231,8 @@ async function migrateLegacyIfNeeded() {
 
   const defaultCaregiver = {
     id: uid('c'),
-    name: 'מטפלת',
-    hourlyRate: (legacySettings && legacySettings.hourlyRate) || 0,
+    name: 'נעמה',
+    hourlyRate: (legacySettings && legacySettings.hourlyRate) || 50,
     createdAt: new Date().toISOString(),
     archived: false,
   };
