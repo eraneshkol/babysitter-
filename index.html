@@ -57,6 +57,11 @@
       </button>
     </div>
 
+    <button id="addEntryBtn" class="share-row add-entry-btn">
+      <span class="icon-wrap"><svg class="icon" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></span>
+      הוספת רשומה ידנית
+    </button>
+
     <div class="table-wrap">
       <table id="entriesTable">
         <thead>
@@ -66,6 +71,7 @@
       </table>
       <div id="emptyState" class="empty-state hidden">אין רישומים בחודש זה</div>
     </div>
+    <div class="table-hint">לחצי על שורה כדי לערוך אותה</div>
   </main>
 
   <main id="view-settings" class="view hidden">
@@ -131,6 +137,23 @@
     <div class="modal-actions">
       <button id="confirmCancel" class="btn btn-secondary">ביטול</button>
       <button id="confirmOk" class="btn btn-danger">אישור</button>
+    </div>
+  </div>
+</div>
+
+<div id="entryModal" class="modal hidden">
+  <div class="modal-box">
+    <div id="entryModalTitle" class="modal-title">עריכת רשומה</div>
+    <label class="form-label" for="entryDateInput">תאריך</label>
+    <input type="date" id="entryDateInput" class="form-input" />
+    <label class="form-label" for="entryCheckInInput">שעת כניסה</label>
+    <input type="time" id="entryCheckInInput" class="form-input" />
+    <label class="form-label" for="entryCheckOutInput">שעת יציאה</label>
+    <input type="time" id="entryCheckOutInput" class="form-input" />
+    <button id="entryDeleteBtn" class="entry-delete-row hidden">מחיקת רשומה</button>
+    <div class="modal-actions">
+      <button id="entryCancelBtn" class="btn btn-secondary">ביטול</button>
+      <button id="entrySaveBtn" class="btn btn-accent">שמירה</button>
     </div>
   </div>
 </div>

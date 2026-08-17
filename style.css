@@ -205,6 +205,16 @@ html, body {
 .share-row .icon-wrap { display: flex; }
 .share-row .icon { width: 18px; height: 18px; }
 
+.add-entry-btn {
+  background: var(--card);
+  border: none;
+  border-top: none;
+  border-radius: var(--radius-card);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  padding: 14px;
+  margin: 12px 0;
+}
+
 .table-wrap {
   background: var(--card);
   border-radius: var(--radius-card);
@@ -219,8 +229,11 @@ thead th {
   font-weight: 600;
   font-size: 0.82rem;
 }
-tbody tr { border-top: 1px solid var(--border); }
+tbody tr { border-top: 1px solid var(--border); cursor: pointer; }
+tbody tr:active { background: var(--fill); }
 tbody tr.in-progress { color: var(--red); font-weight: 600; }
+
+.table-hint { text-align: center; color: var(--muted); font-size: 0.78rem; margin-top: 8px; }
 
 .empty-state { text-align: center; padding: 30px 10px; color: var(--muted); }
 .empty-state.hidden { display: none; }
@@ -438,5 +451,32 @@ tbody tr.in-progress { color: var(--red); font-weight: 600; }
 }
 .modal-title { font-weight: 700; font-size: 1.05rem; margin-bottom: 10px; }
 .modal-body { color: var(--muted); font-size: 0.9rem; line-height: 1.5; margin-bottom: 18px; white-space: pre-line; }
-.modal-actions { display: flex; gap: 10px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 6px; }
 .modal-actions .btn { margin-top: 0; }
+
+.form-label { display: block; font-size: 0.82rem; color: var(--muted); margin: 12px 0 4px; }
+.form-label:first-of-type { margin-top: 0; }
+.form-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: none;
+  background: var(--fill);
+  border-radius: var(--radius-control);
+  font-size: 1rem;
+  color: var(--text);
+  font-family: inherit;
+}
+.entry-delete-row {
+  display: block;
+  width: 100%;
+  text-align: center;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  padding: 14px 0 4px;
+  margin-top: 16px;
+  color: var(--red);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}

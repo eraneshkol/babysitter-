@@ -500,6 +500,102 @@ async function getEntriesForCaregiverMonth(caregiverId, yearMonth) {
   });
 }
 
+// עורכת רשומה קיימת (תיקון ידני של כניסה/יציאה ששכחו לרשום). אם הרשומה הייתה
+// פתוחה (כניסה בלי יציאה) והעריכה סוגרת אותה, מתקנים גם את ה-state של המטפלת
+// לסטטוס "יציאה" - אחרת המסך הראשי יישאר תקוע כאילו היא עדיין בפנים.
+async function updateEntry(entryId, checkInIso, checkOutIso) {
+  const db = await openDb();
+  const checkInDate = new Date(checkInIso);
+  const durationMinutes = Math.max(0, Math.round((new Date(checkOutIso) - checkInDate) / 60000));
+  const dateStr = isoDateOnly(checkInDate);
+  const yearMonth = toYearMonth(dateStr);
+
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries', 'state'], 'readwrite');
+    const entriesStore = tx.objectStore('entries');
+    const stateStore = tx.objectStore('state');
+
+    const getReq = entriesStore.get(entryId);
+    getReq.onsuccess = () => {
+      const entry = getReq.result;
+      if (!entry) return;
+      const wasOpen = entry.checkOut == null;
+      entry.date = dateStr;
+      entry.yearMonth = yearMonth;
+      entry.checkIn = checkInIso;
+      entry.checkOut = checkOutIso;
+      entry.durationMinutes = durationMinutes;
+      entriesStore.put(entry);
+
+      if (wasOpen) {
+        const getStateReq = stateStore.get(entry.caregiverId);
+        getStateReq.onsuccess = () => {
+          const state = getStateReq.result;
+          if (state && state.activeEntryId === entryId) {
+            stateStore.put({ caregiverId: entry.caregiverId, status: 'out', activeEntryId: null, checkInTimestamp: null });
+          }
+        };
+      }
+    };
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+
+  await mirrorNow();
+}
+
+// מוסיפה רשומה ידנית חדשה (למקרה ששכחו ללחוץ על הכפתור באותו יום)
+async function addManualEntry(caregiverId, checkInIso, checkOutIso) {
+  const db = await openDb();
+  const checkInDate = new Date(checkInIso);
+  const durationMinutes = Math.max(0, Math.round((new Date(checkOutIso) - checkInDate) / 60000));
+  const dateStr = isoDateOnly(checkInDate);
+  const yearMonth = toYearMonth(dateStr);
+  const entry = {
+    id: uid(),
+    caregiverId,
+    date: dateStr,
+    yearMonth,
+    checkIn: checkInIso,
+    checkOut: checkOutIso,
+    durationMinutes,
+  };
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries'], 'readwrite');
+    tx.objectStore('entries').add(entry);
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+  await mirrorNow();
+  return entry;
+}
+
+// מוחקת רשומה. אם זו הייתה הרשומה הפעילה, מתקנים את ה-state כדי לא להישאר תקועים.
+async function deleteEntry(entryId) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['entries', 'state'], 'readwrite');
+    const entriesStore = tx.objectStore('entries');
+    const stateStore = tx.objectStore('state');
+    const getReq = entriesStore.get(entryId);
+    getReq.onsuccess = () => {
+      const entry = getReq.result;
+      if (!entry) return;
+      entriesStore.delete(entryId);
+      const getStateReq = stateStore.get(entry.caregiverId);
+      getStateReq.onsuccess = () => {
+        const state = getStateReq.result;
+        if (state && state.activeEntryId === entryId) {
+          stateStore.put({ caregiverId: entry.caregiverId, status: 'out', activeEntryId: null, checkInTimestamp: null });
+        }
+      };
+    };
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+  await mirrorNow();
+}
+
 // ==================== גיבוי / איפוס ====================
 
 async function resetAllData() {
@@ -580,6 +676,9 @@ window.DB = {
   checkOut,
   getCurrentState,
   getEntriesForCaregiverMonth,
+  updateEntry,
+  addManualEntry,
+  deleteEntry,
   getDeduction,
   setDeduction,
   resetAllData,

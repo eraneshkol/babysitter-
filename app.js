@@ -22,6 +22,7 @@ let isProcessing = false;
 let activeCaregiverId = null; // מי הכפתור הגדול במסך הבית שולט בה כרגע
 let reportCaregiverId = null; // מי מוצגת כרגע בדוח החודשי
 let editingCaregiverId = null;
+let editingEntryId = null; // הרשומה שנערכת כרגע במודל הידני, null = מצב "הוספה חדשה"
 
 const ICONS = {
   user: '<svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
@@ -285,6 +286,7 @@ async function renderReport() {
       <td>${entry.checkOut ? formatTime(entry.checkOut) : 'פעיל'}</td>
       <td>${formatDuration(mins)}</td>
     `;
+    tr.addEventListener('click', () => openEntryModal(entry));
     tbody.appendChild(tr);
   }
 
@@ -310,6 +312,103 @@ async function handleDeductionChange() {
   }
   await DB.setDeduction(reportCaregiverId, currentYearMonth, val || 0);
   await renderReport();
+}
+
+// ---------- report: manual entry add/edit/delete ----------
+function todayDateStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function timeStrFromIso(iso) {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function openEntryModal(entry) {
+  editingEntryId = entry ? entry.id : null;
+  document.getElementById('entryModalTitle').textContent = entry ? 'עריכת רשומה' : 'הוספת רשומה ידנית';
+  const dateInput = document.getElementById('entryDateInput');
+  const inInput = document.getElementById('entryCheckInInput');
+  const outInput = document.getElementById('entryCheckOutInput');
+
+  if (entry) {
+    dateInput.value = entry.date;
+    inInput.value = timeStrFromIso(entry.checkIn);
+    outInput.value = entry.checkOut ? timeStrFromIso(entry.checkOut) : '';
+  } else {
+    dateInput.value = currentYearMonth === todayYearMonth() ? todayDateStr() : `${currentYearMonth}-01`;
+    inInput.value = '';
+    outInput.value = '';
+  }
+
+  document.getElementById('entryDeleteBtn').classList.toggle('hidden', !entry);
+  document.getElementById('entryModal').classList.remove('hidden');
+}
+
+function closeEntryModal() {
+  document.getElementById('entryModal').classList.add('hidden');
+  editingEntryId = null;
+}
+
+async function handleSaveEntry() {
+  const dateStr = document.getElementById('entryDateInput').value;
+  const inTime = document.getElementById('entryCheckInInput').value;
+  const outTime = document.getElementById('entryCheckOutInput').value;
+
+  if (!dateStr || !inTime || !outTime) {
+    showToast('יש למלא תאריך, שעת כניסה ושעת יציאה');
+    return;
+  }
+
+  if (inTime === outTime) {
+    showToast('שעת הכניסה והיציאה זהות - זו כנראה טעות');
+    return;
+  }
+
+  const checkInDate = new Date(`${dateStr}T${inTime}:00`);
+  let checkOutDate = new Date(`${dateStr}T${outTime}:00`);
+  if (isNaN(checkInDate.getTime()) || isNaN(checkOutDate.getTime())) {
+    showToast('תאריך או שעה לא תקינים');
+    return;
+  }
+  if (checkOutDate <= checkInDate) {
+    checkOutDate = new Date(checkOutDate.getTime() + 24 * 60 * 60 * 1000); // משמרת שחוצה חצות
+  }
+
+  try {
+    if (editingEntryId) {
+      await DB.updateEntry(editingEntryId, checkInDate.toISOString(), checkOutDate.toISOString());
+      showToast('הרשומה עודכנה');
+    } else {
+      if (!reportCaregiverId) {
+        showToast('יש לבחור מטפלת קודם');
+        return;
+      }
+      await DB.addManualEntry(reportCaregiverId, checkInDate.toISOString(), checkOutDate.toISOString());
+      showToast('הרשומה נוספה');
+    }
+  } catch (err) {
+    console.error(err);
+    showToast('שגיאה בשמירה');
+    return;
+  }
+
+  closeEntryModal();
+  const newYearMonth = `${checkInDate.getFullYear()}-${String(checkInDate.getMonth() + 1).padStart(2, '0')}`;
+  if (newYearMonth !== currentYearMonth) currentYearMonth = newYearMonth;
+  await renderReport();
+  await renderHome();
+}
+
+async function handleDeleteEntry() {
+  if (!editingEntryId) return;
+  const ok = await confirmModal('מחיקת רשומה', 'האם למחוק את הרשומה הזו? לא ניתן לשחזר.', 'מחיקה');
+  if (!ok) return;
+  await DB.deleteEntry(editingEntryId);
+  closeEntryModal();
+  showToast('הרשומה נמחקה');
+  await renderReport();
+  await renderHome();
 }
 
 function changeMonth(delta) {
@@ -662,6 +761,10 @@ async function init() {
   document.getElementById('deductionInput').addEventListener('change', handleDeductionChange);
   document.getElementById('addCaregiverBtn').addEventListener('click', handleAddCaregiver);
   document.getElementById('shareReportBtn').addEventListener('click', handleShareReport);
+  document.getElementById('addEntryBtn').addEventListener('click', () => openEntryModal(null));
+  document.getElementById('entryCancelBtn').addEventListener('click', closeEntryModal);
+  document.getElementById('entrySaveBtn').addEventListener('click', handleSaveEntry);
+  document.getElementById('entryDeleteBtn').addEventListener('click', handleDeleteEntry);
   document.getElementById('exportBtn').addEventListener('click', handleExport);
   document.getElementById('importInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
