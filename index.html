@@ -22,6 +22,7 @@
   </header>
 
   <main id="view-home" class="view">
+    <div id="caregiverSelector" class="caregiver-selector hidden"></div>
     <div class="status-line" id="statusLine">טוען...</div>
     <button id="toggleBtn" class="toggle-btn state-out" disabled>
       <span id="toggleLabel">טוען...</span>
@@ -30,6 +31,7 @@
   </main>
 
   <main id="view-report" class="view hidden">
+    <select id="reportCaregiverSelect" class="caregiver-select hidden"></select>
     <div class="month-nav">
       <button id="prevMonthBtn" class="nav-arrow" aria-label="חודש קודם">‹</button>
       <div id="monthLabel" class="month-label">—</div>
@@ -60,9 +62,13 @@
 
   <main id="view-settings" class="view hidden">
     <div class="settings-card">
-      <label class="settings-label" for="rateInput">תעריף לשעה (₪)</label>
-      <input type="number" id="rateInput" min="0" step="1" inputmode="decimal" />
-      <button id="saveRateBtn" class="btn btn-primary">שמור תעריף</button>
+      <div class="settings-title">מטפלות</div>
+      <div id="caregiverList" class="caregiver-list"></div>
+      <div class="add-caregiver-form">
+        <input type="text" id="newCaregiverName" placeholder="שם המטפלת" />
+        <input type="number" id="newCaregiverRate" placeholder="תעריף לשעה (₪)" min="0" step="1" inputmode="decimal" />
+        <button id="addCaregiverBtn" class="btn btn-primary">הוספת מטפלת</button>
+      </div>
     </div>
 
     <div class="settings-card">

@@ -5,6 +5,9 @@ const HEBREW_MONTHS = ['ינואר','פברואר','מרץ','אפריל','מאי
 let currentYearMonth = todayYearMonth();
 let liveTimer = null;
 let isProcessing = false;
+let activeCaregiverId = null; // מי הכפתור הגדול במסך הבית שולט בה כרגע
+let reportCaregiverId = null; // מי מוצגת כרגע בדוח החודשי
+let editingCaregiverId = null;
 
 // ---------- utils ----------
 function todayYearMonth() {
@@ -34,6 +37,9 @@ function formatDurationHMS(totalSeconds) {
 function monthLabel(yearMonth) {
   const [y, m] = yearMonth.split('-');
   return `${HEBREW_MONTHS[parseInt(m, 10) - 1]} ${y}`;
+}
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 function showToast(msg, ms = 2200) {
   const el = document.getElementById('toast');
@@ -76,27 +82,85 @@ function switchView(name) {
 
 // ---------- home / toggle ----------
 async function renderHome() {
-  const state = await DB.getCurrentState();
+  const allCaregivers = await DB.getAllCaregivers();
+  const activeCaregivers = allCaregivers.filter((c) => !c.archived);
+
   const btn = document.getElementById('toggleBtn');
   const label = document.getElementById('toggleLabel');
   const statusLine = document.getElementById('statusLine');
 
-  btn.disabled = false;
+  if (activeCaregivers.length === 0) {
+    document.getElementById('caregiverSelector').classList.add('hidden');
+    document.getElementById('caregiverSelector').innerHTML = '';
+    statusLine.textContent = 'הוסיפי מטפלת במסך ההגדרות כדי להתחיל';
+    document.getElementById('todaySummary').textContent = '';
+    btn.disabled = true;
+    btn.classList.remove('state-in');
+    btn.classList.add('state-out');
+    label.textContent = 'כניסה';
+    clearInterval(liveTimer);
+    return;
+  }
 
+  let storedActiveId = await DB.getActiveCaregiverId();
+  if (!storedActiveId || !activeCaregivers.some((c) => c.id === storedActiveId)) {
+    storedActiveId = activeCaregivers[0].id;
+    await DB.setActiveCaregiverId(storedActiveId);
+  }
+  activeCaregiverId = storedActiveId;
+
+  const states = {};
+  for (const c of activeCaregivers) {
+    states[c.id] = await DB.getCurrentState(c.id);
+  }
+  renderCaregiverSelector(activeCaregivers, activeCaregiverId, states);
+
+  const state = states[activeCaregiverId];
+  const activeCaregiver = activeCaregivers.find((c) => c.id === activeCaregiverId);
+  const namePrefix = activeCaregivers.length > 1 ? `${activeCaregiver.name} - ` : '';
+
+  btn.disabled = false;
   if (state.status === 'in') {
     btn.classList.remove('state-out');
     btn.classList.add('state-in');
     label.textContent = 'יציאה';
-    statusLine.textContent = `בכניסה מאז ${formatTime(state.checkInTimestamp)}`;
+    statusLine.textContent = `${namePrefix}בכניסה מאז ${formatTime(state.checkInTimestamp)}`;
   } else {
     btn.classList.remove('state-in');
     btn.classList.add('state-out');
     label.textContent = 'כניסה';
-    statusLine.textContent = 'לא רשומה כניסה כרגע';
+    statusLine.textContent = `${namePrefix}לא רשומה כניסה כרגע`;
   }
 
   updateTodaySummary(state);
   startLiveTimer(state);
+}
+
+function renderCaregiverSelector(caregivers, activeId, states) {
+  const container = document.getElementById('caregiverSelector');
+  if (caregivers.length <= 1) {
+    container.classList.add('hidden');
+    container.innerHTML = '';
+    return;
+  }
+  container.classList.remove('hidden');
+  container.innerHTML = '';
+  for (const c of caregivers) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    const isIn = states[c.id] && states[c.id].status === 'in';
+    chip.className = 'caregiver-chip' + (isIn ? ' chip-in' : '') + (c.id === activeId ? ' selected' : '');
+    chip.textContent = c.name;
+    chip.addEventListener('click', () => selectCaregiver(c.id));
+    container.appendChild(chip);
+  }
+}
+
+async function selectCaregiver(id) {
+  if (id === activeCaregiverId) return;
+  activeCaregiverId = id;
+  await DB.setActiveCaregiverId(id);
+  await renderHome();
 }
 
 function startLiveTimer(state) {
@@ -116,17 +180,17 @@ function updateTodaySummary(state) {
 }
 
 async function handleToggleClick() {
-  if (isProcessing) return;
+  if (isProcessing || !activeCaregiverId) return;
   isProcessing = true;
   const btn = document.getElementById('toggleBtn');
   btn.disabled = true;
   try {
-    const state = await DB.getCurrentState();
+    const state = await DB.getCurrentState(activeCaregiverId);
     if (state.status === 'in') {
-      await DB.checkOut();
+      await DB.checkOut(activeCaregiverId);
       showToast('נרשמה יציאה');
     } else {
-      await DB.checkIn();
+      await DB.checkIn(activeCaregiverId);
       showToast('נרשמה כניסה');
     }
     await renderHome();
@@ -141,10 +205,43 @@ async function handleToggleClick() {
 
 // ---------- report ----------
 async function renderReport() {
+  const allCaregivers = await DB.getAllCaregivers();
+  const select = document.getElementById('reportCaregiverSelect');
+
+  if (allCaregivers.length === 0) {
+    select.classList.add('hidden');
+    select.innerHTML = '';
+    document.getElementById('monthLabel').textContent = monthLabel(currentYearMonth);
+    document.getElementById('totalHours').textContent = '0:00';
+    document.getElementById('totalPay').textContent = '₪0';
+    document.getElementById('entriesBody').innerHTML = '';
+    document.getElementById('emptyState').classList.remove('hidden');
+    return;
+  }
+
+  if (!reportCaregiverId || !allCaregivers.some((c) => c.id === reportCaregiverId)) {
+    reportCaregiverId =
+      activeCaregiverId && allCaregivers.some((c) => c.id === activeCaregiverId) ? activeCaregiverId : allCaregivers[0].id;
+  }
+
+  if (allCaregivers.length > 1) {
+    select.classList.remove('hidden');
+    select.innerHTML = allCaregivers
+      .map(
+        (c) =>
+          `<option value="${c.id}" ${c.id === reportCaregiverId ? 'selected' : ''}>${escapeHtml(c.name)}${c.archived ? ' (בארכיון)' : ''}</option>`
+      )
+      .join('');
+  } else {
+    select.classList.add('hidden');
+    select.innerHTML = '';
+  }
+
+  const caregiver = allCaregivers.find((c) => c.id === reportCaregiverId);
+  const rate = caregiver ? Number(caregiver.hourlyRate) || 0 : 0;
+
   document.getElementById('monthLabel').textContent = monthLabel(currentYearMonth);
-  const entries = await DB.getEntriesForMonth(currentYearMonth);
-  const settings = await DB.getSettings();
-  const rate = Number(settings.hourlyRate) || 0;
+  const entries = await DB.getEntriesForCaregiverMonth(reportCaregiverId, currentYearMonth);
 
   const tbody = document.getElementById('entriesBody');
   tbody.innerHTML = '';
@@ -181,11 +278,12 @@ function changeMonth(delta) {
   renderReport();
 }
 
-// ---------- settings ----------
+// ---------- settings: caregivers ----------
 async function renderSettings() {
-  const settings = await DB.getSettings();
-  document.getElementById('rateInput').value = settings.hourlyRate || '';
-  const mirrorRaw = localStorage.getItem('babysitter_mirror_v1');
+  const caregivers = await DB.getAllCaregivers();
+  renderCaregiverList(caregivers);
+
+  const mirrorRaw = localStorage.getItem('babysitter_mirror_v2');
   const info = document.getElementById('lastBackupInfo');
   if (mirrorRaw) {
     try {
@@ -198,17 +296,119 @@ async function renderSettings() {
   }
 }
 
-async function handleSaveRate() {
-  const val = Number(document.getElementById('rateInput').value);
-  if (isNaN(val) || val < 0) {
+function renderCaregiverList(caregivers) {
+  const container = document.getElementById('caregiverList');
+  container.innerHTML = '';
+  if (caregivers.length === 0) {
+    container.innerHTML = '<p class="settings-desc">אין עדיין מטפלות. הוסיפי אחת למטה.</p>';
+    return;
+  }
+  for (const c of caregivers) {
+    const row = document.createElement('div');
+    row.className = 'caregiver-row';
+    if (editingCaregiverId === c.id) {
+      row.innerHTML = `
+        <div class="caregiver-info">
+          <input type="text" class="edit-name-input" value="${escapeHtml(c.name)}" />
+          <input type="number" class="edit-rate-input" value="${c.hourlyRate || 0}" min="0" step="1" />
+        </div>
+        <div class="caregiver-actions">
+          <button class="icon-btn" data-action="save" data-id="${c.id}" aria-label="שמירה">✔️</button>
+          <button class="icon-btn" data-action="cancel" aria-label="ביטול">✖️</button>
+        </div>
+      `;
+    } else {
+      row.innerHTML = `
+        <div class="caregiver-info">
+          <div class="caregiver-name">${escapeHtml(c.name)}${c.archived ? '<span class="caregiver-archived-badge">בארכיון</span>' : ''}</div>
+          <div class="caregiver-rate">₪${c.hourlyRate || 0} לשעה</div>
+        </div>
+        <div class="caregiver-actions">
+          ${c.archived ? '' : `<button class="icon-btn" data-action="edit" data-id="${c.id}" aria-label="עריכה">✏️</button>`}
+          ${c.archived ? '' : `<button class="icon-btn danger" data-action="remove" data-id="${c.id}" aria-label="הסרה">🗑️</button>`}
+        </div>
+      `;
+    }
+    container.appendChild(row);
+  }
+  container.querySelectorAll('[data-action="edit"]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      editingCaregiverId = btn.dataset.id;
+      renderSettings();
+    })
+  );
+  container.querySelectorAll('[data-action="cancel"]').forEach((btn) =>
+    btn.addEventListener('click', () => {
+      editingCaregiverId = null;
+      renderSettings();
+    })
+  );
+  container.querySelectorAll('[data-action="remove"]').forEach((btn) =>
+    btn.addEventListener('click', () => handleRemoveCaregiver(btn.dataset.id))
+  );
+  container.querySelectorAll('[data-action="save"]').forEach((btn) =>
+    btn.addEventListener('click', () => handleSaveCaregiverEdit(btn.dataset.id))
+  );
+}
+
+async function handleAddCaregiver() {
+  const nameInput = document.getElementById('newCaregiverName');
+  const rateInput = document.getElementById('newCaregiverRate');
+  const name = nameInput.value.trim();
+  const rate = Number(rateInput.value);
+  if (!name) {
+    showToast('נא להזין שם');
+    return;
+  }
+  if (rateInput.value === '' || isNaN(rate) || rate < 0) {
     showToast('תעריף לא תקין');
     return;
   }
-  await DB.saveSettings(val);
-  showToast('התעריף נשמר');
-  renderReport();
+  await DB.addCaregiver(name, rate);
+  nameInput.value = '';
+  rateInput.value = '';
+  showToast('המטפלת נוספה');
+  await renderSettings();
+  await renderHome();
 }
 
+async function handleSaveCaregiverEdit(id) {
+  const row = document.querySelector(`[data-action="save"][data-id="${id}"]`).closest('.caregiver-row');
+  const name = row.querySelector('.edit-name-input').value.trim();
+  const rate = Number(row.querySelector('.edit-rate-input').value);
+  if (!name) {
+    showToast('נא להזין שם');
+    return;
+  }
+  if (isNaN(rate) || rate < 0) {
+    showToast('תעריף לא תקין');
+    return;
+  }
+  await DB.updateCaregiver(id, { name, hourlyRate: rate });
+  editingCaregiverId = null;
+  showToast('העדכון נשמר');
+  await renderSettings();
+  await renderHome();
+  await renderReport();
+}
+
+async function handleRemoveCaregiver(id) {
+  const caregivers = await DB.getAllCaregivers();
+  const c = caregivers.find((x) => x.id === id);
+  if (!c) return;
+  const ok = await confirmModal(
+    'הסרת מטפלת',
+    `להסיר את ${c.name}? אם יש לה רישומי שעות, הם יישמרו וההיסטוריה תישאר זמינה בדוח, אבל היא לא תופיע יותר ברשימת הכניסה/יציאה.`,
+    'הסרה'
+  );
+  if (!ok) return;
+  const result = await DB.removeCaregiver(id);
+  showToast(result.archived ? 'המטפלת הועברה לארכיון (ההיסטוריה נשמרה)' : 'המטפלת הוסרה');
+  await renderSettings();
+  await renderHome();
+}
+
+// ---------- settings: backup ----------
 async function handleExport() {
   const data = await DB.exportBackupObject();
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -228,13 +428,17 @@ async function handleImportFile(file) {
   try {
     const text = await file.text();
     const data = JSON.parse(text);
+    const entryCount = (data.entries || []).length;
+    const caregiverCount = Array.isArray(data.caregivers) ? data.caregivers.length : 1;
     const ok = await confirmModal(
       'ייבוא גיבוי',
-      `הפעולה תחליף את כל הנתונים הקיימים באפליקציה בנתונים מהקובץ (${(data.entries || []).length} רישומים). להמשיך?`,
+      `הפעולה תחליף את כל הנתונים הקיימים באפליקציה בנתונים מהקובץ (${entryCount} רישומים, ${caregiverCount} מטפלות). להמשיך?`,
       'ייבוא'
     );
     if (!ok) return;
     await DB.importBackupObject(data);
+    activeCaregiverId = null;
+    reportCaregiverId = null;
     showToast('הייבוא הושלם בהצלחה');
     await renderHome();
     await renderReport();
@@ -248,7 +452,7 @@ async function handleImportFile(file) {
 async function handleReset() {
   const ok1 = await confirmModal(
     'איפוס כל הנתונים',
-    'פעולה זו תמחק לצמיתות את כל הרישומים וההיסטוריה. מומלץ לייצא גיבוי לפני שממשיכים. האם אתה בטוח?'
+    'פעולה זו תמחק לצמיתות את כל הרישומים, ההיסטוריה וכל המטפלות. מומלץ לייצא גיבוי לפני שממשיכים. האם אתה בטוח?'
   );
   if (!ok1) return;
   const ok2 = await confirmModal(
@@ -258,6 +462,10 @@ async function handleReset() {
   );
   if (!ok2) return;
   await DB.resetAllData();
+  await DB.initAndSelfHeal(); // יוצר מחדש מטפלת ברירת מחדל כדי שהאפליקציה לא תישאר ריקה
+  activeCaregiverId = null;
+  reportCaregiverId = null;
+  editingCaregiverId = null;
   showToast('כל הנתונים אופסו');
   currentYearMonth = todayYearMonth();
   await renderHome();
@@ -275,7 +483,11 @@ async function init() {
   document.getElementById('toggleBtn').addEventListener('click', handleToggleClick);
   document.getElementById('prevMonthBtn').addEventListener('click', () => changeMonth(-1));
   document.getElementById('nextMonthBtn').addEventListener('click', () => changeMonth(1));
-  document.getElementById('saveRateBtn').addEventListener('click', handleSaveRate);
+  document.getElementById('reportCaregiverSelect').addEventListener('change', (e) => {
+    reportCaregiverId = e.target.value;
+    renderReport();
+  });
+  document.getElementById('addCaregiverBtn').addEventListener('click', handleAddCaregiver);
   document.getElementById('exportBtn').addEventListener('click', handleExport);
   document.getElementById('importInput').addEventListener('change', (e) => {
     const file = e.target.files[0];

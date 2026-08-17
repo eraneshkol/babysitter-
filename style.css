@@ -40,6 +40,98 @@ html, body {
 .view { flex: 1; padding: 16px; }
 .view.hidden { display: none; }
 
+/* --- CAREGIVER SELECTOR (home) --- */
+.caregiver-selector {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 2px 14px;
+}
+.caregiver-selector.hidden { display: none; }
+.caregiver-chip {
+  flex: 0 0 auto;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 2px solid transparent;
+  background: var(--green);
+  color: #fff;
+  opacity: 0.5;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.caregiver-chip.chip-in { background: var(--red); }
+.caregiver-chip.selected { opacity: 1; border-color: var(--text); }
+
+/* --- CAREGIVER SELECT (report) --- */
+.caregiver-select {
+  width: 100%;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 14px;
+}
+.caregiver-select.hidden { display: none; }
+
+/* --- CAREGIVER LIST (settings) --- */
+.caregiver-list { margin-bottom: 14px; }
+.caregiver-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.caregiver-row:last-child { border-bottom: none; }
+.caregiver-info { flex: 1; min-width: 0; }
+.caregiver-name { font-weight: 700; }
+.caregiver-rate { color: var(--muted); font-size: 0.85rem; }
+.caregiver-archived-badge {
+  display: inline-block;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: #eef0f2;
+  border-radius: 8px;
+  padding: 1px 8px;
+  margin-inline-start: 6px;
+}
+.caregiver-info .edit-name-input,
+.caregiver-info .edit-rate-input {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  margin-bottom: 6px;
+}
+.caregiver-actions { display: flex; gap: 6px; flex: 0 0 auto; }
+.icon-btn {
+  background: #eef0f2;
+  border: none;
+  border-radius: 8px;
+  width: 34px;
+  height: 34px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+.icon-btn.danger { background: #fde2e2; }
+
+.add-caregiver-form { display: flex; flex-direction: column; gap: 8px; }
+.add-caregiver-form input {
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 1rem;
+  text-align: center;
+}
+.add-caregiver-form .btn { margin-top: 2px; }
+
 /* --- HOME / TOGGLE BUTTON --- */
 .status-line {
   text-align: center;
