@@ -286,8 +286,70 @@ function changeMonth(delta) {
   renderReport();
 }
 
+// ---------- report: export to Excel-compatible CSV + share ----------
+function csvEscape(val) {
+  const s = String(val ?? '');
+  if (/[",\n\r]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+function buildCaregiverMonthCsv(caregiver, yearMonth, entries) {
+  const rows = [['תאריך', 'כניסה', 'יציאה', 'שעות']];
+  let totalMinutes = 0;
+  for (const entry of entries) {
+    let mins = entry.durationMinutes;
+    if (mins == null) mins = Math.max(0, Math.round((Date.now() - new Date(entry.checkIn)) / 60000));
+    totalMinutes += mins;
+    rows.push([formatDateHe(entry.date), formatTime(entry.checkIn), entry.checkOut ? formatTime(entry.checkOut) : 'פעיל', formatDuration(mins)]);
+  }
+  rows.push([]);
+  rows.push(['סה"כ שעות', '', '', formatDuration(totalMinutes)]);
+  const pay = (totalMinutes / 60) * (Number(caregiver.hourlyRate) || 0);
+  rows.push(['לתשלום', '', '', `₪${pay.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`]);
+  const csv = rows.map((r) => r.map(csvEscape).join(',')).join('\r\n');
+  return String.fromCharCode(0xfeff) + csv; // BOM so Excel reads the Hebrew as UTF-8 correctly
+}
+
+async function handleShareReport() {
+  const allCaregivers = await DB.getAllCaregivers();
+  const caregiver = allCaregivers.find((c) => c.id === reportCaregiverId);
+  if (!caregiver) {
+    showToast('אין מטפלת נבחרת');
+    return;
+  }
+  const entries = await DB.getEntriesForCaregiverMonth(reportCaregiverId, currentYearMonth);
+  const csv = buildCaregiverMonthCsv(caregiver, currentYearMonth, entries);
+  const filename = `${caregiver.name}-${monthLabel(currentYearMonth)}.csv`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+
+  if (navigator.canShare && navigator.share) {
+    const file = new File([blob], filename, { type: 'text/csv' });
+    if (navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: `דוח שעות - ${caregiver.name}`, text: `דוח שעות ${monthLabel(currentYearMonth)} - ${caregiver.name}` });
+        return;
+      } catch (err) {
+        if (err && err.name === 'AbortError') return; // המשתמשת ביטלה את השיתוף
+        console.error(err);
+      }
+    }
+  }
+
+  // נפילה חזרה: פשוט מורידים את הקובץ אם שיתוף קבצים לא נתמך בדפדפן הזה
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  showToast('הקובץ הורד - אפשר לשתף אותו מאפליקציית הקבצים');
+}
+
 // ---------- settings: caregivers ----------
 async function renderSettings() {
+  updateInstallButtonVisibility();
   const caregivers = await DB.getAllCaregivers();
   renderCaregiverList(caregivers);
 
@@ -486,6 +548,56 @@ async function handleReset() {
   await renderSettings();
 }
 
+// ---------- settings: install app ----------
+let deferredInstallPrompt = null;
+
+function isStandaloneDisplay() {
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+}
+function isIOS() {
+  return /iphone|ipad|ipod/i.test(navigator.userAgent);
+}
+
+function updateInstallButtonVisibility() {
+  const btn = document.getElementById('installAppBtn');
+  const info = document.getElementById('installInfo');
+  if (!btn || !info) return;
+
+  if (isStandaloneDisplay()) {
+    btn.classList.add('hidden');
+    info.textContent = 'האפליקציה כבר מותקנת על המכשיר ✓';
+    info.classList.remove('hidden');
+  } else if (deferredInstallPrompt) {
+    btn.textContent = 'התקנת האפליקציה על הטלפון';
+    btn.classList.remove('hidden');
+    info.classList.add('hidden');
+  } else if (isIOS()) {
+    btn.textContent = 'איך מתקינים על אייפון';
+    btn.classList.remove('hidden');
+    info.classList.add('hidden');
+  } else {
+    btn.classList.add('hidden');
+    info.classList.add('hidden');
+  }
+}
+
+async function handleInstallClick() {
+  if (deferredInstallPrompt) {
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+    updateInstallButtonVisibility();
+    return;
+  }
+  if (isIOS()) {
+    await confirmModal(
+      'התקנה על אייפון',
+      'בספארי: לחצי על כפתור השיתוף (הריבוע עם החץ למעלה) בתחתית המסך, גללי למטה ובחרי "הוסף למסך הבית".',
+      'הבנתי'
+    );
+  }
+}
+
 // ---------- init ----------
 async function init() {
   await DB.initAndSelfHeal();
@@ -501,6 +613,7 @@ async function init() {
     renderReport();
   });
   document.getElementById('addCaregiverBtn').addEventListener('click', handleAddCaregiver);
+  document.getElementById('shareReportBtn').addEventListener('click', handleShareReport);
   document.getElementById('exportBtn').addEventListener('click', handleExport);
   document.getElementById('importInput').addEventListener('change', (e) => {
     const file = e.target.files[0];
@@ -508,6 +621,18 @@ async function init() {
     e.target.value = '';
   });
   document.getElementById('resetBtn').addEventListener('click', handleReset);
+  document.getElementById('installAppBtn').addEventListener('click', handleInstallClick);
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredInstallPrompt = e;
+    updateInstallButtonVisibility();
+  });
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    updateInstallButtonVisibility();
+  });
+  updateInstallButtonVisibility();
 
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') {

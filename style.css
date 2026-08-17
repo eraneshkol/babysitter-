@@ -12,9 +12,14 @@
   --radius-card: 14px;
   --radius-control: 10px;
   --radius-pill: 20px;
+  --toggle-green: #2e9e5b;
+  --toggle-green-dark: #257f49;
+  --toggle-red: #c94f45;
+  --toggle-red-dark: #a83f37;
 }
 
 * { box-sizing: border-box; }
+.hidden { display: none !important; }
 
 html, body {
   margin: 0;
@@ -122,10 +127,10 @@ html, body {
 .toggle-btn:active:not(:disabled) { transform: scale(0.97); }
 .toggle-btn:disabled { opacity: 0.6; cursor: default; }
 
-.toggle-btn.state-out { background: var(--green); }
-.toggle-btn.state-out:active:not(:disabled) { background: var(--green-dark); }
-.toggle-btn.state-in { background: var(--red); }
-.toggle-btn.state-in:active:not(:disabled) { background: var(--red-dark); }
+.toggle-btn.state-out { background: var(--toggle-green); }
+.toggle-btn.state-out:active:not(:disabled) { background: var(--toggle-green-dark); }
+.toggle-btn.state-in { background: var(--toggle-red); }
+.toggle-btn.state-in:active:not(:disabled) { background: var(--toggle-red-dark); }
 
 .today-summary {
   text-align: center;
@@ -169,6 +174,25 @@ html, body {
 }
 .totals-key { color: var(--muted); }
 .totals-val { font-weight: 700; }
+
+.share-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+  padding-top: 12px;
+  border: none;
+  border-top: 1px solid var(--border);
+  background: none;
+  color: var(--green-dark);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.share-row .icon-wrap { display: flex; }
+.share-row .icon { width: 18px; height: 18px; }
 
 .table-wrap {
   background: var(--card);
