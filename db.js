@@ -11,11 +11,11 @@
  */
 
 const DB_NAME = 'babysitterTrackerDB';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const MIRROR_KEY = 'babysitter_mirror_v2';
 
 let dbPromise = null;
-let legacyCapture = null; // דאטא ישן (סכימה v1) שנתפס בזמן ה-upgrade, לפני שנמחק
+let legacyCapture = null; // דאטא ישן (סכימת v1) שנתפס בזמן ה-upgrade, לפני שהוא נמחק
 
 function openDb() {
   if (dbPromise) return dbPromise;
@@ -27,11 +27,16 @@ function openDb() {
       const tx = e.target.transaction;
       const oldVersion = e.oldVersion;
 
-      const finishUpgrade = () => {
-        if (db.objectStoreNames.contains('state')) {
-          db.deleteObjectStore('state');
+      const applySharedSchema = () => {
+        // מחליפים את מבנה ה-state רק כשבאמת עולים מסכימת v1 (keyPath 'key') לסכימת v2+
+        // (keyPath 'caregiverId'). בכל עדכון סכימה עתידי (v3, v4...) אסור לגעת בסטור הזה,
+        // אחרת נמחק בטעות סטייט כניסה/יציאה פעיל של מטפלת אמיתית.
+        if (oldVersion < 2) {
+          if (db.objectStoreNames.contains('state')) {
+            db.deleteObjectStore('state');
+          }
+          db.createObjectStore('state', { keyPath: 'caregiverId' });
         }
-        db.createObjectStore('state', { keyPath: 'caregiverId' });
 
         if (!db.objectStoreNames.contains('caregivers')) {
           db.createObjectStore('caregivers', { keyPath: 'id' });
@@ -51,6 +56,10 @@ function openDb() {
         if (!db.objectStoreNames.contains('settings')) {
           db.createObjectStore('settings', { keyPath: 'key' });
         }
+
+        if (!db.objectStoreNames.contains('deductions')) {
+          db.createObjectStore('deductions', { keyPath: 'id' });
+        }
       };
 
       // אם יש state ישן (סכימת v1, key: 'current') - תופסים אותו לפני שהוא נמחק
@@ -59,14 +68,14 @@ function openDb() {
         const r = os.get('current');
         r.onsuccess = () => {
           legacyCapture = { state: r.result || null };
-          finishUpgrade();
+          applySharedSchema();
         };
         r.onerror = () => {
           legacyCapture = { state: null };
-          finishUpgrade();
+          applySharedSchema();
         };
       } else {
-        finishUpgrade();
+        applySharedSchema();
       }
     };
 
@@ -95,12 +104,13 @@ function isoDateOnly(d) {
 async function readAll() {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers'], 'readonly');
-    const result = { entries: [], states: [], settings: [], caregivers: [] };
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readonly');
+    const result = { entries: [], states: [], settings: [], caregivers: [], deductions: [] };
     tx.objectStore('entries').getAll().onsuccess = (e) => (result.entries = e.target.result);
     tx.objectStore('state').getAll().onsuccess = (e) => (result.states = e.target.result);
     tx.objectStore('settings').getAll().onsuccess = (e) => (result.settings = e.target.result);
     tx.objectStore('caregivers').getAll().onsuccess = (e) => (result.caregivers = e.target.result);
+    tx.objectStore('deductions').getAll().onsuccess = (e) => (result.deductions = e.target.result);
     tx.oncomplete = () => resolve(result);
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -265,15 +275,17 @@ async function migrateLegacyIfNeeded() {
 async function restoreAll(data) {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers'], 'readwrite');
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readwrite');
     tx.objectStore('entries').clear();
     tx.objectStore('state').clear();
     tx.objectStore('settings').clear();
     tx.objectStore('caregivers').clear();
+    tx.objectStore('deductions').clear();
     (data.entries || []).forEach((entry) => tx.objectStore('entries').put(entry));
     (data.states || []).forEach((s) => tx.objectStore('state').put(s));
     (data.settings || []).forEach((s) => tx.objectStore('settings').put(s));
     (data.caregivers || []).forEach((c) => tx.objectStore('caregivers').put(c));
+    (data.deductions || []).forEach((d) => tx.objectStore('deductions').put(d));
     tx.oncomplete = () => resolve();
     tx.onerror = (e) => reject(e.target.error);
   });
@@ -493,15 +505,37 @@ async function getEntriesForCaregiverMonth(caregiverId, yearMonth) {
 async function resetAllData() {
   const db = await openDb();
   await new Promise((resolve, reject) => {
-    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers'], 'readwrite');
+    const tx = db.transaction(['entries', 'state', 'settings', 'caregivers', 'deductions'], 'readwrite');
     tx.objectStore('entries').clear();
     tx.objectStore('state').clear();
     tx.objectStore('settings').clear();
     tx.objectStore('caregivers').clear();
+    tx.objectStore('deductions').clear();
     tx.oncomplete = resolve;
     tx.onerror = (e) => reject(e.target.error);
   });
   localStorage.removeItem(MIRROR_KEY);
+}
+
+async function getDeduction(caregiverId, yearMonth) {
+  const db = await openDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(['deductions'], 'readonly');
+    const req = tx.objectStore('deductions').get(`${caregiverId}_${yearMonth}`);
+    req.onsuccess = () => resolve(req.result ? Number(req.result.amount) || 0 : 0);
+    req.onerror = (e) => reject(e.target.error);
+  });
+}
+
+async function setDeduction(caregiverId, yearMonth, amount) {
+  const db = await openDb();
+  await new Promise((resolve, reject) => {
+    const tx = db.transaction(['deductions'], 'readwrite');
+    tx.objectStore('deductions').put({ id: `${caregiverId}_${yearMonth}`, caregiverId, yearMonth, amount: Number(amount) || 0 });
+    tx.oncomplete = resolve;
+    tx.onerror = (e) => reject(e.target.error);
+  });
+  await mirrorNow();
 }
 
 async function exportBackupObject() {
@@ -546,6 +580,8 @@ window.DB = {
   checkOut,
   getCurrentState,
   getEntriesForCaregiverMonth,
+  getDeduction,
+  setDeduction,
   resetAllData,
   exportBackupObject,
   importBackupObject,

@@ -275,8 +275,27 @@ async function renderReport() {
   }
 
   document.getElementById('totalHours').textContent = formatDuration(totalMinutes);
-  const totalPay = (totalMinutes / 60) * rate;
+
+  const deduction = await DB.getDeduction(reportCaregiverId, currentYearMonth);
+  const deductionInput = document.getElementById('deductionInput');
+  if (document.activeElement !== deductionInput) {
+    deductionInput.value = deduction || '';
+  }
+
+  const rawPay = (totalMinutes / 60) * rate;
+  const totalPay = rawPay - deduction;
   document.getElementById('totalPay').textContent = `₪${totalPay.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`;
+}
+
+async function handleDeductionChange() {
+  const input = document.getElementById('deductionInput');
+  const val = Number(input.value);
+  if (input.value !== '' && (isNaN(val) || val < 0)) {
+    showToast('סכום קיזוז לא תקין');
+    return;
+  }
+  await DB.setDeduction(reportCaregiverId, currentYearMonth, val || 0);
+  await renderReport();
 }
 
 function changeMonth(delta) {
@@ -293,7 +312,7 @@ function csvEscape(val) {
   return s;
 }
 
-function buildCaregiverMonthCsv(caregiver, yearMonth, entries) {
+function buildCaregiverMonthCsv(caregiver, yearMonth, entries, deduction) {
   const rows = [['תאריך', 'כניסה', 'יציאה', 'שעות']];
   let totalMinutes = 0;
   for (const entry of entries) {
@@ -304,8 +323,12 @@ function buildCaregiverMonthCsv(caregiver, yearMonth, entries) {
   }
   rows.push([]);
   rows.push(['סה"כ שעות', '', '', formatDuration(totalMinutes)]);
-  const pay = (totalMinutes / 60) * (Number(caregiver.hourlyRate) || 0);
-  rows.push(['לתשלום', '', '', `₪${pay.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`]);
+  const rawPay = (totalMinutes / 60) * (Number(caregiver.hourlyRate) || 0);
+  if (deduction) {
+    rows.push(['קיזוזים', '', '', `₪${Number(deduction).toLocaleString('he-IL', { maximumFractionDigits: 0 })}`]);
+  }
+  const totalPay = rawPay - (Number(deduction) || 0);
+  rows.push(['לתשלום', '', '', `₪${totalPay.toLocaleString('he-IL', { maximumFractionDigits: 0 })}`]);
   const csv = rows.map((r) => r.map(csvEscape).join(',')).join('\r\n');
   return String.fromCharCode(0xfeff) + csv; // BOM so Excel reads the Hebrew as UTF-8 correctly
 }
@@ -318,7 +341,8 @@ async function handleShareReport() {
     return;
   }
   const entries = await DB.getEntriesForCaregiverMonth(reportCaregiverId, currentYearMonth);
-  const csv = buildCaregiverMonthCsv(caregiver, currentYearMonth, entries);
+  const deduction = await DB.getDeduction(reportCaregiverId, currentYearMonth);
+  const csv = buildCaregiverMonthCsv(caregiver, currentYearMonth, entries, deduction);
   const filename = `${caregiver.name}-${monthLabel(currentYearMonth)}.csv`;
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
 
@@ -612,6 +636,7 @@ async function init() {
     reportCaregiverId = e.target.value;
     renderReport();
   });
+  document.getElementById('deductionInput').addEventListener('change', handleDeductionChange);
   document.getElementById('addCaregiverBtn').addEventListener('click', handleAddCaregiver);
   document.getElementById('shareReportBtn').addEventListener('click', handleShareReport);
   document.getElementById('exportBtn').addEventListener('click', handleExport);
